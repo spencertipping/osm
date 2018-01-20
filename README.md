@@ -22,7 +22,7 @@ First, let's pull out the nodes as TSV `nodeID lat lng`:
 
 ```sh
 $ ni osm-planet.lz4 \
-     S12[r/\<node/p'r /id="([^"]+)"/, /lat="([^"]+)"/, /lon="([^"]+)"/'] \
+     S12r/\<node/p'r /id="([^"]+)"/, /lat="([^"]+)"/, /lon="([^"]+)"/' \
      z4\>osm-nodes.lz4
 ```
 
