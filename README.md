@@ -31,10 +31,16 @@ than 50GB into the file, so we can more quickly iterate on the parser if we have
 them in their own file.
 
 Sadly we can't scale this out; ways are multiline constructs, so we have to
-serialize through a single perl process. This slows us down by about 8x.
+serialize through a single perl process. This slows us down by about 8x, but we
+can optimize a bit by using `egrep` to cut through non-ways (5x speedup) and by
+bypassing ni's row-processing machinery (3x speedup in this case).
 
 ```sh
+# compact way, about 50MB/s:
 $ ni osm-planet.lz4 rp'/<way/../<\/way/' z4\>osm-ways.lz4
+
+# fast way, about 160MB/s:
+$ ni osm-planet.lz4 e[egrep -v '<node|</?changeset|<tag'] \
+                    e[perl -ne 'print if /<way/../<\/way/'] \
+     z4\>osm-ways.lz4
 ```
-
-
