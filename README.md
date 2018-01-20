@@ -32,8 +32,9 @@ them in their own file.
 
 Sadly we can't scale this out; ways are multiline constructs, so we have to
 serialize through a single perl process. This slows us down by about 8x, but we
-can optimize a bit by using `egrep` to cut through non-ways (5x speedup) and by
-bypassing ni's row-processing machinery (3x speedup in this case).
+can optimize a bit by using `egrep` to cut through non-ways (7x speedup) and by
+bypassing ni's row-processing machinery for the ways themselves (3x speedup in
+this case).
 
 ```sh
 # compact way, about 50MB/s:
