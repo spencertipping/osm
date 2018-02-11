@@ -6,12 +6,20 @@ process.
 
 ## Docker workflow
 All of the stuff in this readme is scripted into a Docker image you can run on a
-server to replicate the outputs. You'll need about 1TB of free disk space and
->72GB of memory. If you want to do this, here's how:
+server to replicate the outputs. You'll need about 1TB of free disk space
+(~500GB in `/tmp`) and 72GB of memory. If you want to do this, here's how:
 
 ```sh
-$ ./osm
+$ ./osm workdir
 ```
+
+This will produce a bunch of outputs in `workdir`. If you already have an OSM
+planet file you want to use, you can link it as `workdir/osm-planet.lz4` (it
+doesn't need to be compressed with LZ4, but it does need to have that exact
+name) to prevent the script from downloading the latest.
+
+The docker app is built on Gentoo for performance reasons, which will incur some
+delay the first time you build the image.
 
 ## Very first order of business: transcode bzip to lz4
 bzip2's decompression speed is ~20MB/s/core, whereas LZ4 runs at about 400MB/s.
