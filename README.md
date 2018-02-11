@@ -116,12 +116,12 @@ $ units -t '4254954891 * 16bytes' GB    # how much memory do we need?
 
 Awesome, now let's generate the table. This is going to take a few hours,
 largely bottlenecked on the single-threaded process that packs the numbers into
-binary.
+binary. It's important to leave this file uncompressed.
 
 ```sh
 $ ni osm-nodes.lz4 S24p'r a, ghe b, c, -60' \
      ^{row/sort-buffer=131072M row/sort-parallel=24} \
-     op'wp"QQ", a, b' z4\>osm-nodes-packed.QQ
+     op'wp"QQ", a, b' \>osm-nodes-packed.QQ
 ```
 
 Alright, now let's do the join. This relies on the [new binary searching
@@ -136,21 +136,37 @@ so. This is easy to do with ni's `W\>` operator; the only downside is that it
 requires a sort first.
 
 I'm doing some creative stuff to split the load across CPUs here, mostly around
-collapsing each way down to a single line quickly so we can use `S24`.
+collapsing each way down to a single line quickly so we can use `S24`. The
+binary search is also parallelized, which is possible because we create a memory
+mapping that will use the same set of physical pages to load the data. To do
+this, of course, we need to install `Sys::Mmap`.
+
+```sh
+$ sudo apt install libsys-mmap-perl
+```
+
+It's useful to have 24 parallel processes even though the server has only 12
+physical cores. We're going to have a lot of cache misses, and that's where
+hyperthreading gets most of its leverage. I'm also preloading the mmap cache
+sequentially, which is much faster than letting the random accesses load it up
+from disk.
 
 ```sh
 $ mkdir -p tiles; \
   ni osm-ways.lz4 e'tr "\n" " "' \
      e[ perl -e 'for (my $s = ""; read STDIN, $s, 1<<20, length $s;)
                  { print $1, "\n" if $s =~ s/(<way.*<\/way>)// }' ] \
-     S12[p'split /<\/way>/' \
-         p'my ($way) = (my $l = $_) =~ /<way ((?:\w+="[^"]*"\s*)*)/;
-           my $attrs = json_encode {$way =~ /(\w+)="([^"]*)"/g};
-           my $tags  = json_encode {$l =~ /tag k="([^"]*)" v="([^"]*)"/g};
-           r $attrs, $tags, /nd ref="(\d+)"/g'] \
-     S2p'^{ri $nodes, "ni osm-nodes-packed.QQ |"}
-         r a, b, map bsflookup($nodes, "Q", 16, $_, "x8Q"), FR 2' \
-     S12p'r "tiles/$_", F_ for uniq map gb3($_ >> 40, 20), FR 2' \
+     S24p'split /<\/way>/' \
+     S24p'my ($way) = (my $l = $_) =~ /<way ((?:\w+="[^"]*"\s*)*)/;
+          my $attrs = json_encode {$way =~ /(\w+)="([^"]*)"/g};
+          my $tags  = json_encode {$l =~ /tag k="([^"]*)" v="([^"]*)"/g};
+          r $attrs, $tags, /nd ref="(\d+)"/g' \
+     S24p'^{ use Sys::Mmap;
+             open my $fh, "< osm-nodes-packed.QQ";
+             mmap $nodes, 0, PROT_READ, MAP_SHARED, $fh;
+             substr $nodes, $_ << 20, 1048576 for 0..length($nodes) >> 20 }
+          r a, b, map bsflookup($nodes, "Q", 16, $_, "x8Q"), FR 2' \
+     S24p'r "tiles/$_", F_ for uniq map gb3($_ >> 40, 20), FR 2' \
      ^{row/sort-buffer=8192M row/sort-parallel=24} \
      g W\>z4
 ```
