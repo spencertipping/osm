@@ -45,7 +45,7 @@ $ ni osm-planet.lz4 e[egrep -v '<node|</?changeset'] \
                     e[perl -ne 'print if /<way/../<\/way/'] \
      z4\>osm-ways.lz4
 
-# let's also unpack relations, just so we have them:
+# let's also unpack relations just so we have them:
 $ ni osm-planet.lz4 e[egrep -v '<node|</?changeset'] \
                     e[perl -ne 'print if /<relation/../<\/relation/'] \
      z4\>osm-relations.lz4
@@ -79,7 +79,7 @@ We'll want to end up with a structured format for these things, which I think
 can be this:
 
 ```
-{attribute-json} {tag-json} node1 node2 ...
+{attribute-json} {tag-json} point1 point2 ...
 ```
 
 We can pack a way pretty easily:
@@ -102,8 +102,8 @@ $ ni osm-ways.lz4 p'my %attrs = /(\w+)="([^"]*)"/g;
 
 #### The node/way join
 We'll want to get a bit creative by using a packed binary encoding and binary
-splits to find elements. This is a bit slower than Perl datastructures, but uses
-less than 10% of the space and saves us from having to sort the way list twice.
+splits to find elements. This is slower than Perl datastructures, but uses less
+than 10% of the space and saves us from having to sort the way list twice.
 Counting up the rows:
 
 ```sh
@@ -114,10 +114,37 @@ $ units -t '4254954891 * 16bytes' GB    # how much memory do we need?
 68.079278
 ```
 
-Awesome, now let's generate the table. This is going to take a while.
+Awesome, now let's generate the table. This is going to take a few hours,
+largely bottlenecked on the single-threaded process that packs the numbers into
+binary.
 
 ```sh
 $ ni osm-nodes.lz4 S24p'r a, ghe b, c, -60' \
      ^{row/sort-buffer=131072M row/sort-parallel=24} \
-     op'wp"QQ", a, b' z\>osm-nodes-packed.QQ
+     op'wp"QQ", a, b' z4\>osm-nodes-packed.QQ
+```
+
+Alright, now let's do the join. This relies on the [new binary searching
+stuff](https://github.com/spencertipping/ni/commit/86e27ee80abf26c3c195d5c29e813db0024dcaba)
+available in ni. Before we commit the result, though, let's also talk about
+tiling.
+
+#### Tile outputs
+It's inconvenient to have a single huge file of ways. What would be better is a
+bunch of small files, each containing the set of ways within a specific gh4 or
+so. This is easy to do with ni's `W\>` operator; the only downside is that it
+requires a sort first.
+
+```sh
+$ mkdir -p tiles; \
+  ni osm-ways.lz4 \
+     p'^{ri $nodes, "ni osm-nodes-packed.QQ |"}
+       my $attrs = json_encode {/(\w+)="([^"]*)"/g};
+       my @ls    = ru{/<way/};
+       my $tags  = json_encode {map /tag k="([^"]*)" v="([^"]*)"/, @ls};
+       my @ghs   = map bsflookup($nodes, "Q", 16, $_, "x8Q"),
+                   map /nd ref="(\d+)"/, @ls;
+       r "tiles/$_", $attrs, $tags, @ghs for uniq map gb3($_ >> 40, 20), @ghs' \
+     ^{row/sort-buffer=131072M row/sort-parallel=24} \
+     g W\>z4
 ```
