@@ -1,0 +1,8 @@
+#!/bin/bash
+# Runs the full OSM workflow in the current directory, or the one you provide,
+# using the docker image.
+
+workdir=${1:-$PWD}
+
+docker build "$(dirname "$0")"
+docker run --rm -v "$workdir:/data" $(docker build -q "$(dirname "$0")")

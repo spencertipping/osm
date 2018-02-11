@@ -4,6 +4,15 @@ useful for a lot of different stuff. You have a couple of format options, XML
 and ProtoBuf, and I download in XML because it requires less custom code to
 process.
 
+## Docker workflow
+All of the stuff in this readme is scripted into a Docker image you can run on a
+server to replicate the outputs. You'll need about 1TB of free disk space and
+>72GB of memory. If you want to do this, here's how:
+
+```sh
+$ ./osm
+```
+
 ## Very first order of business: transcode bzip to lz4
 bzip2's decompression speed is ~20MB/s/core, whereas LZ4 runs at about 400MB/s.
 This is a huge difference when we're doing multiple scans over the XML.
@@ -61,7 +70,7 @@ access nodes per gh4.
 ```sh
 $ mkdir -p node-tiles; \
   ni osm-nodes.lz4 S12p'r "node-tiles/" . ghe(b, c, 4), b, c, a' \
-     ^{row/sort-buffer=32768M row/sort-parallel=12} g W\>z4
+     ^{row/sort-buffer=8192M row/sort-parallel=12} g W\>z4
 ```
 
 ### Processing ways
