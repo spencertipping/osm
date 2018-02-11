@@ -4,5 +4,7 @@
 
 workdir=${1:-$PWD}
 
+mkdir -p "$workdir"
+
 docker build "$(dirname "$0")"
 docker run --rm -v "$workdir:/data" $(docker build -q "$(dirname "$0")")
