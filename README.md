@@ -135,16 +135,22 @@ bunch of small files, each containing the set of ways within a specific gh4 or
 so. This is easy to do with ni's `W\>` operator; the only downside is that it
 requires a sort first.
 
+I'm doing some creative stuff to split the load across CPUs here, mostly around
+collapsing each way down to a single line quickly so we can use `S24`.
+
 ```sh
 $ mkdir -p tiles; \
-  ni osm-ways.lz4 \
-     p'^{ri $nodes, "ni osm-nodes-packed.QQ |"}
-       my $attrs = json_encode {/(\w+)="([^"]*)"/g};
-       my @ls    = ru{/<way/};
-       my $tags  = json_encode {map /tag k="([^"]*)" v="([^"]*)"/, @ls};
-       my @ghs   = map bsflookup($nodes, "Q", 16, $_, "x8Q"),
-                   map /nd ref="(\d+)"/, @ls;
-       r "tiles/$_", $attrs, $tags, @ghs for uniq map gb3($_ >> 40, 20), @ghs' \
-     ^{row/sort-buffer=131072M row/sort-parallel=24} \
+  ni osm-ways.lz4 e'tr "\n" " "' \
+     e[ perl -e 'for (my $s = ""; read STDIN, $s, 1<<20, length $s;)
+                 { print $1, "\n" if $s =~ s/(<way.*<\/way>)// }' ] \
+     S12[p'split /<\/way>/' \
+         p'my ($way) = (my $l = $_) =~ /<way ((?:\w+="[^"]*"\s*)*)/;
+           my $attrs = json_encode {$way =~ /(\w+)="([^"]*)"/g};
+           my $tags  = json_encode {$l =~ /tag k="([^"]*)" v="([^"]*)"/g};
+           r $attrs, $tags, /nd ref="(\d+)"/g'] \
+     S2p'^{ri $nodes, "ni osm-nodes-packed.QQ |"}
+         r a, b, map bsflookup($nodes, "Q", 16, $_, "x8Q"), FR 2' \
+     S12p'r "tiles/$_", F_ for uniq map gb3($_ >> 40, 20), FR 2' \
+     ^{row/sort-buffer=8192M row/sort-parallel=24} \
      g W\>z4
 ```
