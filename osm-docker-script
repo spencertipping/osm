@@ -13,7 +13,7 @@ export NI_PAGER=cat
 [[ osm-nodes.lz4 -nt osm-planet.lz4 ]] \
   || ni osm-planet.lz4 \
         S12r/\<node/p'r /id="([^"]+)"/, /lat="([^"]+)"/, /lon="([^"]+)"/' \
-        z4\>osm-nodes.lz4
+        z4\>osm-nodes.lz4 &
 
 [[ osm-ways.lz4 -nt osm-planet.lz4 ]] \
   || ni osm-planet.lz4 e[egrep -v '<node|</?changeset'] \
