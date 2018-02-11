@@ -51,6 +51,19 @@ $ ni osm-planet.lz4 e[egrep -v '<node|</?changeset'] \
      z4\>osm-relations.lz4
 ```
 
+### Processing nodes
+This can run in parallel with the [way processing](#processing-ways).
+
+Right now the node list is huge and not especially useful for anything other
+than dereferencing. We can fix this a bit by creating node tiles so we can
+access nodes per gh4.
+
+```sh
+$ mkdir -p node-tiles; \
+  ni osm-nodes.lz4 S12p'r "node-tiles/" . ghe(b, c, 4), b, c, a' \
+     ^{row/sort-buffer=32768M row/sort-parallel=12} g W\>z4
+```
+
 ### Processing ways
 OK, we've got the ways as XML and they look like this:
 
