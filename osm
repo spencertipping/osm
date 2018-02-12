@@ -14,7 +14,7 @@ if ! docker images -q gentoo-local-osm | grep -q .; then
   gentoo=`docker run -d --volumes-from $portage gentoo/stage3-amd64:latest \
             /bin/bash -c '
               packages="perl net-misc/curl app-arch/lz4 app-arch/pbzip2
-                        coreutils dev-perl/Sys-Mmap"
+                        app-arch/xz coreutils dev-perl/Sys-Mmap"
               echo '\''CONFIG_PROTECT="-*"'\'' >> /etc/portage/make.conf
               echo '\''CPU_FLAGS_X86="mmxext sse3"'\'' >> /etc/portage/make.conf
               echo '\''CXXFLAGS="-O2 -march=native -mtune=native"'\'' >> /etc/portage/make.conf
@@ -27,5 +27,5 @@ if ! docker images -q gentoo-local-osm | grep -q .; then
   docker rm $gentoo $portage
 fi
 
-#docker build "$(dirname "$0")"
-#docker run --rm -v "$workdir:/data" $(docker build -q "$(dirname "$0")")
+docker build "$(dirname "$0")"
+docker run --rm -v "$workdir:/data" $(docker build -q "$(dirname "$0")")

@@ -29,8 +29,9 @@ wait
 
 [[ -d node-tiles ]] \
   || { mkdir -p node-tiles
-       ni osm-nodes.lz4 S12p'r "node-tiles/" . ghe(b, c, 4), b, c, a' \
-          ^{row/sort-buffer=8192M row/sort-parallel=24} g W\>z4; } &
+       ni osm-nodes.lz4 S12p'r "node-tiles/" . ghe(b, c, 3), b, c, a' \
+          ^{row/sort-buffer=8192M row/sort-parallel=24} g W\> \
+          e'xargs -P24 -n1 xz -9e'; } &
 
 [[ -e osm-nodes-packed.QQ ]] \
   || ni osm-nodes.lz4 S24p'r a, ghe b, c, -60' \
@@ -52,8 +53,8 @@ wait
                   mmap $nodes, 0, PROT_READ, MAP_SHARED, $fh;
                   substr $nodes, $_ << 20, 1048576 for 0..length($nodes) >> 20 }
                r a, b, map bsflookup($nodes, "Q", 16, $_, "x8Q"), FR 2' \
-          S24p'r "tiles/$_", F_ for uniq map gb3($_ >> 40, 20), FR 2' \
+          S24p'r "tiles/$_", F_ for uniq map gb3($_ >> 45, 15), FR 2' \
           ^{row/sort-buffer=8192M row/sort-parallel=24} \
-          g W\>z4; }
+          g W\> e'xargs -P24 -n1 xz 9e'; }
 
 wait
