@@ -172,7 +172,8 @@ mapping that will use the same set of physical pages to load the data. To do
 this, of course, we need to install `Sys::Mmap`.
 
 ```sh
-$ sudo apt install libsys-mmap-perl
+$ sudo apt install libsys-mmap-perl   # ubuntu
+$ sudo emerge dev-perl/Sys-Mmap       # gentoo
 ```
 
 It's useful to have 24 parallel processes even though the server has only 12
@@ -191,12 +192,62 @@ $ mkdir -p tiles; \
           my $attrs = json_encode {$way =~ /(\w+)="([^"]*)"/g};
           my $tags  = json_encode {$l =~ /tag k="([^"]*)" v="([^"]*)"/g};
           r $attrs, $tags, /nd ref="(\d+)"/g' \
-     S24p'^{ use Sys::Mmap;
-             open my $fh, "< osm-nodes-packed.QQ";
-             mmap $nodes, 0, PROT_READ, MAP_SHARED, $fh;
+     S24p'^{ use Sys::Mmap; open my $fh, "< osm-nodes-packed.QQ";
+                            mmap $nodes, 0, PROT_READ, MAP_SHARED, $fh;
              substr $nodes, $_ << 20, 1048576 for 0..length($nodes) >> 20 }
           r a, b, map bsflookup($nodes, "Q", 16, $_, "x8Q"), FR 2' \
      S24p'r "tiles/$_", F_ for uniq map gb3($_ >> 40, 20), FR 2' \
      ^{row/sort-buffer=8192M row/sort-parallel=24} \
-     g W\>z4
+     g W\> e'xargs -P24 -n1 xz -9e'
 ```
+
+`W\>` emits a list of filenames as they're written. This is a great opportunity
+to compress them in a separate process, `xz -9e` in this case, by having `xargs`
+parallelize accordingly. `xargs` will push back against `W\>` if the files are
+coming in too quickly, which in this case acts as a rate limiter to prevent too
+much uncompressed data from existing on disk at any given moment.
+
+#### Profiling tile sizes (before I added `xargs xz`)
+At first I was generating LZ4-compressed gh4 tiles. `ext4`, the underlying
+filesystem, uses 4K block sizes by default; let's measure the efficiency ratio:
+
+```sh
+$ ni tiles p-s p'r a + 4095 & ~4095, a' ,sABr+1pb/a
+0.992300404317512     # that's surprisingly efficient
+```
+
+Histogram of `round(log2(size))`:
+
+```sh
+$ ni tiles p-s ,l2qoc
+19      7
+1519    8
+5353    9
+8918    10      # 1KiB
+13613   11
+20453   12
+26334   13
+32143   14      # 16KiB: distribution peak
+32081   15
+27154   16      # 64KiB
+22028   17
+17715   18
+14181   19
+8649    20      # 1MiB
+4153    21
+2389    22
+1138    23
+346     24
+80      25
+9       26
+1       27      # 128MiB
+```
+
+In practice we want larger tiles than this. If we wanted to do something across
+a range of data, we'd likely be seek-bound on these; the ideal size is closer to
+tens of megabytes per tile, with outliers in the tens-of-gigabytes range.
+Bundling tiles at the gh3 rather than gh4 level would increase the size by 32x.
+`xz -9e` provides surprisingly fast decompression -- about 200MB/s -- and gets a
+high enough compression ratio that we'll be saving a substantial amount of IO by
+using it. (Another factor is that `xz` does well on long-lookback situations, so
+larger files = better compression.)
