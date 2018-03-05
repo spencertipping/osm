@@ -25,6 +25,10 @@ delay the first time you build the image.
 bzip2's decompression speed is ~20MB/s/core, whereas LZ4 runs at about 400MB/s.
 This is a huge difference when we're doing multiple scans over the XML.
 
+**NB:** ni knows about `pbzip2`, which is parallelized and much faster than
+`bzip2` on multicore machines. So I recommend running `apt-get install pbzip2`
+before doing the following transcode:
+
 ```sh
 $ ni osm-planet.bz2 z4\>osm-planet.lz4
 ```
